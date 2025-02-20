@@ -29,7 +29,10 @@ service cloud.firestore {
       
       // Allow creating if signed in and data is valid
       allow create: if isSignedIn() 
-        && request.resource.data.userId == request.auth.uid;
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.content is string
+        && request.resource.data.type is string
+        && request.resource.data.pin is number;
       
       // Allow updates only by the owner or for view count
       allow update: if 

@@ -109,7 +109,7 @@ export default function CreateConfession() {
       const confessionData: NewConfession = {
         content: content.trim(),
         type,
-        pin: parseInt(pin, 10), // Convert PIN to number
+        pin: parseInt(pin, 10),
         userId: user!.uid,
         createdAt: new Date().toISOString(),
         views: 0,
@@ -125,76 +125,53 @@ export default function CreateConfession() {
       // Create share URL
       const shareUrl = `${window.location.origin}/confession/${docRef.id}`;
 
-      // Try to copy to clipboard, but don't block on failure
-      try {
-        await navigator.clipboard.writeText(shareUrl);
-        toast({
-          title: "Confession created!",
-          description: (
-            <Fragment>
-              Your confession has been shared successfully.
-              <br />
-              The share link has been copied to your clipboard!
-            </Fragment>
-          ),
-          status: "success",
-          duration: 5000,
-        });
-      } catch (clipboardError) {
-        // Handle clipboard error gracefully
-        toast({
-          title: "Confession created!",
-          description: (
-            <Fragment>
-              Your confession has been shared successfully.
-              <br />
-              Share link: {shareUrl}
-            </Fragment>
-          ),
-          status: "success",
-          duration: 8000,
-        });
-      }
+      // Show success message without attempting to copy to clipboard
+      toast({
+        title: "Confession created!",
+        description: (
+          <Fragment>
+            Your confession has been shared successfully.
+            <br />
+            Share link: {shareUrl}
+          </Fragment>
+        ),
+        status: "success",
+        duration: 8000,
+        isClosable: true,
+      });
 
       // Navigate to the new confession
       navigate(`/confession/${docRef.id}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating confession:', error);
       
-      // Handle specific error cases
-      if (error instanceof Error) {
-        const firebaseError = error as { code?: string; message: string };
-        
-        if (firebaseError.code === 'permission-denied') {
-          toast({
-            title: "Permission Denied",
-            description: "You don't have permission to create confessions",
-            status: "error",
-            duration: 3000,
-          });
-        } else if (firebaseError.code === 'unavailable') {
-          toast({
-            title: "Service Unavailable",
-            description: "Please try again later",
-            status: "error",
-            duration: 3000,
-          });
-        } else {
-          toast({
-            title: "Error creating confession",
-            description: firebaseError.message || "Please try again later",
-            status: "error",
-            duration: 3000,
-          });
+      let errorMessage = "Failed to create confession. Please try again.";
+      
+      // Handle specific Firebase errors
+      if (error?.code) {
+        switch (error.code) {
+          case 'permission-denied':
+            errorMessage = "You don't have permission to create confessions. Please log in again.";
+            break;
+          case 'unauthenticated':
+            errorMessage = "Please log in to create confessions.";
+            break;
+          case 'unavailable':
+            errorMessage = "Service is temporarily unavailable. Please try again later.";
+            break;
+          case 'failed-precondition':
+            errorMessage = "Unable to create confession. Please check your connection and try again.";
+            break;
         }
-      } else {
-        toast({
-          title: "Error creating confession",
-          description: "An unexpected error occurred. Please try again later",
-          status: "error",
-          duration: 3000,
-        });
       }
+      
+      toast({
+        title: "Error",
+        description: errorMessage,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
     } finally {
       setIsSubmitting(false);
     }
