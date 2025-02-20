@@ -50,7 +50,7 @@ interface Confession {
   createdAt: string;
   views: number;
   userId: string;
-  pin: number;
+  pin: number | string;
   isHidden: boolean;
 }
 
@@ -85,8 +85,13 @@ export default function ViewConfession() {
 
         if (docSnap.exists()) {
           const data = docSnap.data();
-          // Ensure PIN is a number
-          const pin = typeof data.pin === 'string' ? parseInt(data.pin, 10) : data.pin;
+          // Ensure PIN is always a 4-digit number
+          const pin = typeof data.pin === 'string' ? 
+            parseInt(data.pin, 10) : 
+            typeof data.pin === 'number' ? 
+              data.pin : 
+              0;
+
           setConfession({ 
             id: docSnap.id, 
             ...data, 
@@ -98,7 +103,9 @@ export default function ViewConfession() {
           const storedPin = localStorage.getItem(`confession_pin_${docSnap.id}`);
           if (storedPin) {
             // Auto-unlock if PIN matches
-            if (parseInt(storedPin, 10) === pin) {
+            const storedPinValue = typeof storedPin === 'string' ? 
+              parseInt(storedPin, 10) : storedPin;
+            if (storedPinValue === pin) {
               setIsUnlocked(true);
               setIsPinModalOpen(false);
             } else {
@@ -138,7 +145,11 @@ export default function ViewConfession() {
   const handlePinSubmit = () => {
     if (!confession) return;
 
-    if (parseInt(pin, 10) === confession.pin) {
+    const enteredPin = parseInt(pin, 10);
+    const storedPin = typeof confession.pin === 'string' ? 
+      parseInt(confession.pin, 10) : confession.pin;
+
+    if (enteredPin === storedPin) {
       setIsUnlocked(true);
       setIsPinModalOpen(false);
       // Store PIN for future auto-unlock
@@ -330,10 +341,6 @@ export default function ViewConfession() {
                     >
                       Unlock
                     </Button>
-                    {/* Debug info */}
-                    <Text fontSize="xs" color="gray.500">
-                      Entered PIN: {pin}
-                    </Text>
                   </VStack>
                 </ModalBody>
               </ModalContent>

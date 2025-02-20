@@ -99,17 +99,26 @@ export function Navbar() {
               <Link 
                 as={RouterLink} 
                 to="/board"
-                py={2}
-                px={4}
-                rounded="lg"
-                color={useColorModeValue('gray.600', 'gray.300')}
-                _hover={{ 
-                  bg: useColorModeValue('gray.100', 'gray.700'),
-                  color: 'brand.500',
-                  textDecoration: 'none'
-                }}
+                color="gray.600"
+                _hover={{ color: 'brand.500' }}
               >
-                Confession Board
+                Board
+              </Link>
+              <Link 
+                as={RouterLink} 
+                to="/terms"
+                color="gray.600"
+                _hover={{ color: 'brand.500' }}
+              >
+                Terms
+              </Link>
+              <Link 
+                as={RouterLink} 
+                to="/privacy"
+                color="gray.600"
+                _hover={{ color: 'brand.500' }}
+              >
+                Privacy
               </Link>
             </HStack>
           </HStack>
@@ -145,7 +154,13 @@ export function Navbar() {
                   <Avatar size="sm" name={user.displayName || ''} src={user.photoURL || ''} />
                 </MenuButton>
                 <MenuList>
-                  <MenuItem icon={<ChakraIcon icon={MdPerson} />}>Profile</MenuItem>
+                  <MenuItem
+                    icon={<ChakraIcon icon={MdPerson} />}
+                    as={RouterLink}
+                    to="/profile"
+                  >
+                    Profile
+                  </MenuItem>
                   <MenuItem icon={<ChakraIcon icon={MdLogout} />} onClick={handleLogout}>
                     Logout
                   </MenuItem>
