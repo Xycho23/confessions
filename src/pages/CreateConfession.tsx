@@ -22,6 +22,8 @@ import { collection, addDoc } from 'firebase/firestore';
 import { db, ConfessionType, NewConfession, COLLECTIONS } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { MdArrowBack } from 'react-icons/md';
+import { ChakraIcon } from '../components/ChakraIcon';
 
 const MIN_CONTENT_LENGTH = 10;
 const MAX_CONTENT_LENGTH = 2000;
@@ -111,6 +113,7 @@ export default function CreateConfession() {
         userId: user!.uid,
         createdAt: new Date().toISOString(),
         views: 0,
+        isHidden: false
       };
 
       // Get reference to confessions collection
@@ -122,22 +125,36 @@ export default function CreateConfession() {
       // Create share URL
       const shareUrl = `${window.location.origin}/confession/${docRef.id}`;
 
-      // Copy to clipboard
-      await navigator.clipboard.writeText(shareUrl);
-
-      // Show success message
-      toast({
-        title: "Confession created!",
-        description: (
-          <Fragment>
-            Your confession has been shared successfully.
-            <br />
-            The share link has been copied to your clipboard!
-          </Fragment>
-        ),
-        status: "success",
-        duration: 5000,
-      });
+      // Try to copy to clipboard, but don't block on failure
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        toast({
+          title: "Confession created!",
+          description: (
+            <Fragment>
+              Your confession has been shared successfully.
+              <br />
+              The share link has been copied to your clipboard!
+            </Fragment>
+          ),
+          status: "success",
+          duration: 5000,
+        });
+      } catch (clipboardError) {
+        // Handle clipboard error gracefully
+        toast({
+          title: "Confession created!",
+          description: (
+            <Fragment>
+              Your confession has been shared successfully.
+              <br />
+              Share link: {shareUrl}
+            </Fragment>
+          ),
+          status: "success",
+          duration: 8000,
+        });
+      }
 
       // Navigate to the new confession
       navigate(`/confession/${docRef.id}`);
@@ -189,84 +206,116 @@ export default function CreateConfession() {
   }
 
   return (
-    <Container maxW="container.md" py={8}>
-      <VStack spacing={8}>
-        <Heading
-          bgGradient="linear(to-r, pink.400, purple.500)"
-          backgroundClip="text"
-        >
-          Create Your Love Confession
-        </Heading>
-        <Box as="form" onSubmit={handleSubmit} width="100%">
-          <VStack spacing={6}>
-            <FormControl isRequired>
-              <FormLabel>Type</FormLabel>
-              <Select
-                value={type}
-                onChange={(e) => setType(e.target.value as ConfessionType)}
-              >
-                <option value="letter">Love Letter</option>
-                <option value="card">Greeting Card</option>
-                <option value="note">Sweet Note</option>
-                <option value="poem">Love Poem</option>
-                <option value="story">Love Story</option>
-              </Select>
-            </FormControl>
-
-            <FormControl isRequired>
-              <FormLabel>Your Confession</FormLabel>
-              <Textarea
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder="Pour your heart out..."
-                minH="200px"
-                maxLength={MAX_CONTENT_LENGTH}
-              />
-              <Text fontSize="sm" color={textColor} mt={2}>
-                {content.length}/{MAX_CONTENT_LENGTH} characters
-                {content.length < MIN_CONTENT_LENGTH && (
-                  <Text as="span" color="red.500">
-                    {" "}(Minimum {MIN_CONTENT_LENGTH} characters required)
-                  </Text>
-                )}
-              </Text>
-            </FormControl>
-
-            <FormControl isRequired>
-              <FormLabel>PIN (4 digits)</FormLabel>
-              <HStack justify="center">
-                <PinInput
-                  value={pin}
-                  onChange={setPin}
-                  type="number"
-                  mask
-                  otp
-                >
-                  <PinInputField />
-                  <PinInputField />
-                  <PinInputField />
-                  <PinInputField />
-                </PinInput>
-              </HStack>
-              <FormHelperText>
-                This PIN will be required to view your confession
-              </FormHelperText>
-            </FormControl>
-
+    <Box minH="100vh" bg="gray.50">
+      <Container maxW={{ base: "100%", md: "90%", lg: "70%" }} p={{ base: 2, md: 4 }}>
+        <VStack spacing={{ base: 3, md: 6 }} align="stretch">
+          <HStack 
+            justify="space-between" 
+            wrap="wrap" 
+            gap={2}
+            position="sticky"
+            top={0}
+            bg="gray.50"
+            p={2}
+            zIndex={1}
+            boxShadow="sm"
+          >
+            <Heading size={{ base: "md", md: "lg" }}>Create Confession</Heading>
             <Button
-              type="submit"
-              colorScheme="pink"
-              size="lg"
-              width="100%"
-              isLoading={isSubmitting}
-              loadingText="Sharing your love..."
-              isDisabled={content.length < MIN_CONTENT_LENGTH || pin.length !== PIN_LENGTH}
+              leftIcon={<ChakraIcon icon={MdArrowBack} />}
+              onClick={() => navigate(-1)}
+              size={{ base: "sm", md: "md" }}
+              variant="ghost"
+              rounded="full"
             >
-              Share Your Love
+              Back
             </Button>
-          </VStack>
-        </Box>
-      </VStack>
-    </Container>
+          </HStack>
+
+          <Box
+            p={{ base: 4, md: 6 }}
+            borderRadius="xl"
+            bg="white"
+            boxShadow="sm"
+          >
+            <VStack spacing={{ base: 3, md: 4 }}>
+              <FormControl isRequired>
+                <FormLabel fontSize={{ base: "sm", md: "md" }}>Type</FormLabel>
+                <Select
+                  value={type}
+                  onChange={(e) => setType(e.target.value as ConfessionType)}
+                  size={{ base: "md", md: "lg" }}
+                  rounded="lg"
+                  bg="white"
+                  _focus={{ boxShadow: "outline" }}
+                >
+                  <option value="letter">Love Letter</option>
+                  <option value="card">Greeting Card</option>
+                  <option value="note">Sweet Note</option>
+                  <option value="poem">Love Poem</option>
+                  <option value="story">Love Story</option>
+                </Select>
+              </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel fontSize={{ base: "sm", md: "md" }}>Content</FormLabel>
+                <Textarea
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder="Pour your heart out..."
+                  size="lg"
+                  minH={{ base: "150px", md: "200px" }}
+                  resize="vertical"
+                  rounded="lg"
+                  bg="white"
+                  _focus={{ boxShadow: "outline" }}
+                />
+                <Text fontSize="xs" color="gray.500" mt={1}>
+                  {content.length}/{MAX_CONTENT_LENGTH} characters
+                </Text>
+              </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel fontSize={{ base: "sm", md: "md" }}>PIN</FormLabel>
+                <Text fontSize={{ base: "xs", md: "sm" }} color="gray.600" mb={2}>
+                  Set a 4-digit PIN to protect your confession
+                </Text>
+                <HStack justify="center" py={2}>
+                  <PinInput
+                    value={pin}
+                    onChange={setPin}
+                    type="number"
+                    mask
+                    size={{ base: "lg", md: "xl" }}
+                  >
+                    <PinInputField />
+                    <PinInputField />
+                    <PinInputField />
+                    <PinInputField />
+                  </PinInput>
+                </HStack>
+              </FormControl>
+
+              <Button
+                colorScheme="blue"
+                width="100%"
+                mt={4}
+                isLoading={isSubmitting}
+                onClick={handleSubmit}
+                size={{ base: "lg", md: "xl" }}
+                rounded="full"
+                isDisabled={content.length < MIN_CONTENT_LENGTH || pin.length !== 4}
+                _disabled={{
+                  opacity: 0.6,
+                  cursor: "not-allowed"
+                }}
+              >
+                Share Your Love
+              </Button>
+            </VStack>
+          </Box>
+        </VStack>
+      </Container>
+    </Box>
   );
 }

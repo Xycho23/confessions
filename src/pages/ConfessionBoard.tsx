@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box,
   SimpleGrid,
@@ -29,9 +29,8 @@ import {
   AlertIcon,
   FormControl,
   Textarea,
-  PinInput,
-  PinInputField,
-  FormLabel
+  FormLabel,
+  PinInputField
 } from '@chakra-ui/react';
 import {
   collection,
@@ -47,9 +46,10 @@ import {
 import { db, COLLECTIONS } from '../config/firebase';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { MdMoreVert, MdShare, MdDelete, MdLock, MdVisibility, MdVisibilityOff, MdChat } from 'react-icons/md';
+import { MdMoreVert, MdShare, MdLock, MdVisibility, MdVisibilityOff, MdChat } from 'react-icons/md';
 import { useAuth } from '../context/AuthContext';
 import { ChakraIcon } from '../components/ChakraIcon';
+import { CustomPinInput as PinInput } from '../components/PinInput';
 
 const MotionBox = motion(Box);
 
@@ -63,6 +63,7 @@ interface Confession {
   views: number;
   userId: string;
   pin: number;
+  isHidden: boolean;
 }
 
 interface Reply {
@@ -164,6 +165,10 @@ const LoadingCard = () => {
 };
 
 const ConfessionCard = ({ confession, hiddenConfessions, onHide, onUnhide }: ConfessionCardProps) => {
+  const [isVerified, setIsVerified] = useState(false);
+  const [pin, setPin] = useState('');
+  const [showPinInput, setShowPinInput] = useState(false);
+  const [error, setError] = useState('');
   const [showReplies, setShowReplies] = useState(false);
   const [replies, setReplies] = useState<Reply[]>([]);
   const [replyContent, setReplyContent] = useState('');
@@ -174,34 +179,29 @@ const ConfessionCard = ({ confession, hiddenConfessions, onHide, onUnhide }: Con
   const theme = confessionThemes[confession.type];
   const navigate = useNavigate();
 
-  // Fetch replies when showReplies is true
-  useEffect(() => {
-    if (showReplies) {
-      const fetchReplies = async () => {
-        try {
-          const q = query(
-            collection(db, COLLECTIONS.REPLIES),
-            where('parentId', '==', confession.id),
-            orderBy('createdAt', 'desc')
-          );
-          const querySnapshot = await getDocs(q);
-          const repliesData = querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          } as Reply));
-          setReplies(repliesData);
-        } catch (error) {
-          console.error('Error fetching replies:', error);
-          toast({
-            title: 'Error fetching replies',
-            status: 'error',
-            duration: 3000
-          });
-        }
-      };
-      fetchReplies();
+  const handleVerifyPin = () => {
+    if (parseInt(pin) === confession.pin) {
+      setIsVerified(true);
+      setError('');
+      setShowPinInput(false);
+    } else {
+      setError('Incorrect PIN');
     }
-  }, [showReplies, confession.id, toast]);
+  };
+
+  const handleCopy = () => {
+    if (!isVerified) {
+      setShowPinInput(true);
+      return;
+    }
+    const shareLink = `${window.location.origin}/confession/${confession.id}`;
+    navigator.clipboard.writeText(shareLink);
+    toast({
+      title: 'Share link copied!',
+      status: 'success',
+      duration: 2000,
+    });
+  };
 
   const handleReply = async () => {
     if (!user) {
@@ -273,6 +273,34 @@ const ConfessionCard = ({ confession, hiddenConfessions, onHide, onUnhide }: Con
     }
   };
 
+  useEffect(() => {
+    if (showReplies) {
+      const fetchReplies = async () => {
+        try {
+          const q = query(
+            collection(db, COLLECTIONS.REPLIES),
+            where('parentId', '==', confession.id),
+            orderBy('createdAt', 'desc')
+          );
+          const querySnapshot = await getDocs(q);
+          const repliesData = querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          } as Reply));
+          setReplies(repliesData);
+        } catch (error) {
+          console.error('Error fetching replies:', error);
+          toast({
+            title: 'Error fetching replies',
+            status: 'error',
+            duration: 3000
+          });
+        }
+      };
+      fetchReplies();
+    }
+  }, [showReplies, confession.id, toast]);
+
   return (
     <Box
       p={6}
@@ -319,14 +347,39 @@ const ConfessionCard = ({ confession, hiddenConfessions, onHide, onUnhide }: Con
           </Menu>
         </HStack>
 
-        <Text
-          whiteSpace="pre-wrap"
-          css={{ fontFamily: theme.font }}
-          onClick={() => navigate(`/confession/${confession.id}`)}
-          cursor="pointer"
-        >
-          {confession.content}
-        </Text>
+        {isVerified ? (
+          <Text
+            whiteSpace="pre-wrap"
+            css={{ fontFamily: theme.font }}
+            onClick={() => navigate(`/confession/${confession.id}`)}
+            cursor="pointer"
+          >
+            {confession.content}
+          </Text>
+        ) : (
+          <Box>
+            <Text fontSize="lg" fontWeight="medium" mb={2}>
+              🔒 This confession is locked
+            </Text>
+            {showPinInput ? (
+              <VStack spacing={2} align="stretch">
+                <PinInput
+                  value={pin}
+                  onChange={(value) => setPin(value)}
+                  onComplete={handleVerifyPin}
+                  error={error}
+                />
+                <Button size="sm" onClick={() => setShowPinInput(false)}>
+                  Cancel
+                </Button>
+              </VStack>
+            ) : (
+              <Text fontSize="sm" color="gray.600">
+                Enter PIN to view content
+              </Text>
+            )}
+          </Box>
+        )}
 
         <HStack width="100%" justify="space-between">
           <Text fontSize="sm" color="gray.500">
@@ -337,7 +390,7 @@ const ConfessionCard = ({ confession, hiddenConfessions, onHide, onUnhide }: Con
           </Text>
         </HStack>
 
-        {showReplies && (
+        {isVerified && showReplies && (
           <VStack width="100%" spacing={4} pt={4} borderTop="1px" borderColor="gray.200">
             <Box width="100%">
               <FormControl>
@@ -349,21 +402,11 @@ const ConfessionCard = ({ confession, hiddenConfessions, onHide, onUnhide }: Con
                 />
               </FormControl>
               <HStack mt={2} spacing={4}>
-                <FormControl>
-                  <FormLabel fontSize="sm">PIN (4 digits)</FormLabel>
-                  <PinInput
-                    value={replyPin}
-                    onChange={setReplyPin}
-                    type="number"
-                    mask
-                    otp
-                  >
-                    <PinInputField />
-                    <PinInputField />
-                    <PinInputField />
-                    <PinInputField />
-                  </PinInput>
-                </FormControl>
+                <PinInput
+                  value={replyPin}
+                  onChange={(value) => setReplyPin(value)}
+                  label="PIN (4 digits)"
+                />
                 <Button
                   colorScheme="pink"
                   onClick={handleReply}
@@ -403,6 +446,12 @@ const ConfessionCard = ({ confession, hiddenConfessions, onHide, onUnhide }: Con
           </VStack>
         )}
       </VStack>
+      <IconButton
+        aria-label="Share confession"
+        icon={<ChakraIcon icon={isVerified ? MdShare : MdLock} />}
+        size="sm"
+        onClick={handleCopy}
+      />
     </Box>
   );
 };
@@ -502,7 +551,7 @@ const BlurredConfessionCard = ({ confession, hiddenConfessions, onHide, onUnhide
                     {user && user.uid === confession.userId ? (
                       <MenuItem 
                         onClick={() => setIsDeleteDialogOpen(true)} 
-                        icon={<ChakraIcon icon={MdDelete} boxSize={5} />}
+                        icon={<ChakraIcon icon={MdLock} boxSize={5} />}
                         color="red.500"
                       >
                         Delete
@@ -525,7 +574,7 @@ const BlurredConfessionCard = ({ confession, hiddenConfessions, onHide, onUnhide
 
             <Box flex="1" width="100%" position="relative">
               <Text
-                fontSize="md"
+                fontSize={{ base: "md", md: "lg" }}
                 noOfLines={6}
                 filter="blur(5px)"
               >
@@ -705,7 +754,8 @@ export default function ConfessionBoard() {
             userId: 'dummy',
             pin: 0,
             createdAt: new Date().toISOString(),
-            views: 0
+            views: 0,
+            isHidden: false
           },
           {
             id: '2',
@@ -714,7 +764,8 @@ export default function ConfessionBoard() {
             userId: 'dummy',
             pin: 0,
             createdAt: new Date().toISOString(),
-            views: 0
+            views: 0,
+            isHidden: false
           },
           {
             id: '3',
@@ -723,7 +774,8 @@ export default function ConfessionBoard() {
             userId: 'dummy',
             pin: 0,
             createdAt: new Date().toISOString(),
-            views: 0
+            views: 0,
+            isHidden: false
           }
         ];
         setConfessions(dummyConfessions);
@@ -758,77 +810,156 @@ export default function ConfessionBoard() {
   }, [fetchConfessions]);
 
   return (
-    <Container maxW="container.xl" py={8}>
-      <VStack spacing={8} width="100%">
-        <Heading
-          as="h1"
-          size="xl"
-          textAlign="center"
-          bgGradient="linear(to-r, pink.400, purple.500)"
-          backgroundClip="text"
-        >
-          Confession Board
-        </Heading>
-
-        {!user && (
-          <Box textAlign="center" mb={4}>
-            <Text color="gray.600" mb={2}>
-              Sign in to view and create real confessions
-            </Text>
-            <Button
-              colorScheme="blue"
-              onClick={() => navigate('/login')}
-              size="sm"
-            >
-              Sign In
-            </Button>
-          </Box>
-        )}
-
-        {error ? (
-          <Alert status="error" width="100%">
-            <AlertIcon />
-            {error}
-          </Alert>
-        ) : loading ? (
-          <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={6} width="100%">
-            {[...Array(6)].map((_, i) => (
-              <LoadingCard key={i} />
-            ))}
-          </SimpleGrid>
-        ) : confessions.length === 0 ? (
-          <Text
-            textAlign="center"
-            color="gray.500"
-            fontSize="lg"
-            width="100%"
+    <Box minH="100vh" bg="gray.50">
+      <Container maxW={{ base: "100%", md: "90%", lg: "80%" }} p={{ base: 2, md: 4 }}>
+        <VStack spacing={{ base: 3, md: 4 }} align="stretch" w="100%">
+          <HStack 
+            justify="space-between" 
+            flexWrap="wrap" 
+            gap={2}
+            position="sticky"
+            top={0}
+            bg="gray.50"
+            p={2}
+            zIndex={1}
+            boxShadow="sm"
           >
-            No confessions yet. Be the first to share your love!
-          </Text>
-        ) : (
-          <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={6} width="100%">
-            {confessions.map((confession) => (
-              user ? (
-                <ConfessionCard 
-                  key={confession.id} 
-                  confession={confession}
-                  hiddenConfessions={hiddenConfessions}
-                  onHide={handleHideConfession}
-                  onUnhide={handleUnhideConfession}
-                />
-              ) : (
-                <BlurredConfessionCard 
-                  key={confession.id} 
-                  confession={confession}
-                  hiddenConfessions={hiddenConfessions}
-                  onHide={handleHideConfession}
-                  onUnhide={handleUnhideConfession}
-                />
-              )
-            ))}
-          </SimpleGrid>
-        )}
-      </VStack>
-    </Container>
+            <Heading size={{ base: "md", md: "lg" }}>Confessions</Heading>
+            {user && (
+              <Button
+                leftIcon={<ChakraIcon icon={MdMoreVert} />}
+                colorScheme="blue"
+                onClick={() => navigate('/create')}
+                size={{ base: "sm", md: "md" }}
+                rounded="full"
+              >
+                New Confession
+              </Button>
+            )}
+          </HStack>
+
+          {error ? (
+            <Alert status="error" width="100%">
+              <AlertIcon />
+              {error}
+            </Alert>
+          ) : loading ? (
+            <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={{ base: 3, md: 4 }}>
+              {[...Array(6)].map((_, i) => (
+                <LoadingCard key={i} />
+              ))}
+            </SimpleGrid>
+          ) : confessions.length === 0 ? (
+            <Text
+              textAlign="center"
+              color="gray.500"
+              fontSize="lg"
+              width="100%"
+            >
+              No confessions yet. Be the first to share your love!
+            </Text>
+          ) : (
+            <SimpleGrid 
+              columns={{ base: 1, md: 2, lg: 3 }} 
+              spacing={{ base: 3, md: 4 }}
+              px={{ base: 2, md: 0 }}
+            >
+              {confessions.map((confession) => (
+                user ? (
+                  <Box
+                    key={confession.id}
+                    p={{ base: 3, md: 4 }}
+                    borderRadius="xl"
+                    bg="white"
+                    boxShadow="sm"
+                    transition="all 0.2s"
+                    _hover={{ boxShadow: "md", transform: "translateY(-2px)" }}
+                  >
+                    <VStack align="stretch" spacing={3}>
+                      <HStack justify="space-between" align="center">
+                        <Text 
+                          fontSize={{ base: "xs", md: "sm" }}
+                          color="gray.600"
+                          noOfLines={1}
+                        >
+                          {new Date(confession.createdAt).toLocaleDateString()}
+                        </Text>
+                        <Menu>
+                          <MenuButton
+                            as={IconButton}
+                            aria-label="Options"
+                            icon={<ChakraIcon icon={MdMoreVert} />}
+                            variant="ghost"
+                            size="sm"
+                            rounded="full"
+                          />
+                          <MenuList>
+                            <MenuItem 
+                              icon={<ChakraIcon icon={MdVisibility} />}
+                              onClick={() => navigate(`/confession/${confession.id}`)}
+                            >
+                              View
+                            </MenuItem>
+                            {user && user.uid === confession.userId && (
+                              <>
+                                <MenuItem 
+                                  icon={confession.isHidden ? <ChakraIcon icon={MdVisibilityOff} /> : <ChakraIcon icon={MdVisibility} />}
+                                  onClick={() => handleHideConfession(confession.id)}
+                                >
+                                  {confession.isHidden ? "Unhide" : "Hide"}
+                                </MenuItem>
+                                <MenuItem 
+                                  icon={<ChakraIcon icon={MdLock} />}
+                                  color="red.500" 
+                                  onClick={() => handleHideConfession(confession.id)}
+                                >
+                                  Delete
+                                </MenuItem>
+                              </>
+                            )}
+                          </MenuList>
+                        </Menu>
+                      </HStack>
+
+                      <Text 
+                        fontSize={{ base: "md", md: "lg" }}
+                        fontWeight="medium"
+                        noOfLines={3}
+                        lineHeight="tall"
+                      >
+                        {confession.content}
+                      </Text>
+
+                      <HStack justify="space-between" mt={2}>
+                        <Badge 
+                          variant="subtle" 
+                          colorScheme={typeColors[confession.type]}
+                          rounded="full"
+                          px={2}
+                          fontSize="xs"
+                        >
+                          {confession.type}
+                        </Badge>
+                        <Text fontSize="xs" color="gray.500">
+                          {confession.views} views
+                        </Text>
+                      </HStack>
+                    </VStack>
+                  </Box>
+                ) : (
+                  <BlurredConfessionCard 
+                    key={confession.id} 
+                    confession={confession}
+                    hiddenConfessions={hiddenConfessions}
+                    onHide={handleHideConfession}
+                    onUnhide={handleUnhideConfession}
+                  />
+                )
+              ))}
+            </SimpleGrid>
+          )}
+        </VStack>
+      </Container>
+    </Box>
   );
 }

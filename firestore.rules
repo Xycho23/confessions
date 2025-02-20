@@ -1,32 +1,19 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
     // Helper functions
+    function isValidPin(pin) {
+      return pin is number && pin >= 0 && pin <= 9999;
+    }
+    
     function isSignedIn() {
       return request.auth != null;
     }
     
     function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-    
-    function isValidPin() {
-      let pin = request.resource.data.pin;
-      return pin is number && pin >= 0 && pin <= 9999;
-    }
-    
-    function isValidConfessionType() {
-      let validTypes = ['letter', 'card', 'note', 'poem', 'story'];
-      return request.resource.data.type in validTypes;
+      return isSignedIn() && request.auth.uid == userId;
     }
 
-    function isOnlyUpdatingViews(existingData, incomingData) {
-      let allowedFields = ['views', 'updatedAt'];
-      let changedFields = incomingData.diff(existingData).affectedKeys();
-      return changedFields.hasOnly(allowedFields);
-    }
-    
     // Users collection
     match /users/{userId} {
       allow read: if isSignedIn() && isOwner(userId);
@@ -37,25 +24,22 @@ service cloud.firestore {
     
     // Confessions collection
     match /confessions/{confessionId} {
-      // Allow reading any confession
+      // Allow reading confessions without authentication
       allow read: if true;
-        
-      // Allow creating if signed in
-      allow create: if 
-        isSignedIn() && 
-        request.resource.data.userId == request.auth.uid &&
-        isValidPin() &&
-        isValidConfessionType();
-        
-      // Allow updating own confessions or just the view count
+      
+      // Allow creating if signed in and data is valid
+      allow create: if isSignedIn() 
+        && request.resource.data.userId == request.auth.uid;
+      
+      // Allow updates only by the owner or for view count
       allow update: if 
-        isSignedIn() && resource.data.userId == request.auth.uid ||
-        isOnlyUpdatingViews(resource.data, request.resource.data);
-        
-      // Allow deleting own confessions
-      allow delete: if 
-        isSignedIn() && 
-        resource.data.userId == request.auth.uid;
+        isSignedIn() && (
+          isOwner(resource.data.userId) ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'isHidden'])
+        );
+      
+      // Allow deletion only by the owner
+      allow delete: if isOwner(resource.data.userId);
     }
     
     // Hidden confessions collection
@@ -76,19 +60,15 @@ service cloud.firestore {
     
     // Replies collection
     match /replies/{replyId} {
-      // Allow reading replies
+      // Allow reading replies without authentication
       allow read: if true;
       
-      // Allow creating replies if signed in and PIN is valid
-      allow create: if 
-        isSignedIn() && 
-        request.resource.data.userId == request.auth.uid &&
-        isValidPin();
-        
-      // Allow deleting own replies
-      allow delete: if 
-        isSignedIn() && 
-        resource.data.userId == request.auth.uid;
+      // Allow creating if signed in
+      allow create: if isSignedIn() 
+        && request.resource.data.userId == request.auth.uid;
+      
+      // Allow deletion only by the owner
+      allow delete: if isOwner(resource.data.userId);
     }
     
     // Templates collection

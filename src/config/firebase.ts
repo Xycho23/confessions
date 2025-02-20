@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getAuth, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
@@ -15,10 +15,23 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Get Firebase services
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const storage = getStorage(app);
+// Initialize Firestore with persistent cache
+const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
+});
+
+// Initialize Auth with persistence
+const auth = getAuth(app);
+setPersistence(auth, browserLocalPersistence)
+  .catch((error) => {
+    console.warn("Persistence failed, falling back to session persistence:", error);
+    return setPersistence(auth, browserSessionPersistence);
+  });
+
+// Initialize Storage
+const storage = getStorage(app);
 
 // Collection names as constants to avoid typos
 export const COLLECTIONS = {
@@ -35,10 +48,11 @@ export type ConfessionType = 'letter' | 'card' | 'note' | 'poem' | 'story';
 export interface BaseConfession {
   content: string;
   type: ConfessionType;
-  userId: string;
   pin: number;
+  userId: string;
   createdAt: string;
   views: number;
+  isHidden: boolean;
 }
 
 export interface Confession extends BaseConfession {
@@ -46,7 +60,8 @@ export interface Confession extends BaseConfession {
 }
 
 export interface NewConfession extends BaseConfession {
-  id?: never;
+  views: 0;
+  isHidden: false;
 }
 
 export interface HiddenConfession {
@@ -114,3 +129,6 @@ export const confessionThemes = {
     icon: '📖'
   }
 };
+
+// Export services
+export { auth, db, storage };

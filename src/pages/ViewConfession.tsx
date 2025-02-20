@@ -20,6 +20,16 @@ import {
   ModalCloseButton,
   IconButton,
   Skeleton,
+  Center,
+  Spinner,
+  Alert,
+  AlertIcon,
+  SimpleGrid,
+  Menu,
+  MenuButton,
+  MenuItem,
+  MenuList,
+  Textarea,
 } from '@chakra-ui/react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
@@ -27,6 +37,7 @@ import { db } from '../config/firebase';
 import { MdShare, MdArrowBack } from 'react-icons/md';
 import { motion } from 'framer-motion';
 import { ChakraIcon } from '../components/ChakraIcon';
+import { HiDotsVertical } from 'react-icons/hi';
 
 const MotionBox = motion(Box);
 
@@ -40,6 +51,7 @@ interface Confession {
   views: number;
   userId: string;
   pin: number;
+  isHidden: boolean;
 }
 
 const typeColors: Record<ConfessionType, string> = {
@@ -78,7 +90,8 @@ export default function ViewConfession() {
           setConfession({ 
             id: docSnap.id, 
             ...data, 
-            pin 
+            pin,
+            isHidden: data.isHidden || false
           } as Confession);
           setIsPinModalOpen(true);
 
@@ -154,130 +167,225 @@ export default function ViewConfession() {
     });
   };
 
-  if (loading) {
-    return (
-      <Container maxW="container.md" py={8}>
-        <VStack spacing={6}>
-          <Skeleton height="40px" width="200px" />
-          <Skeleton height="300px" width="100%" />
-        </VStack>
-      </Container>
-    );
-  }
+  const handleHideToggle = async () => {
+    if (!confession) return;
 
-  if (!confession) {
-    return (
-      <Container maxW="container.md" py={8}>
-        <Text>Confession not found</Text>
-      </Container>
-    );
-  }
+    try {
+      const docRef = doc(db, 'confessions', confession.id);
+      await updateDoc(docRef, {
+        isHidden: !confession.isHidden
+      });
+
+      toast({
+        title: `Confession ${confession.isHidden ? 'unhidden' : 'hidden'}`,
+        status: 'success',
+        duration: 3000
+      });
+
+      // Update local state
+      setConfession(prev => prev ? {
+        ...prev,
+        isHidden: !prev.isHidden
+      } : null);
+    } catch (error) {
+      console.error('Error toggling confession visibility:', error);
+      toast({
+        title: 'Error updating confession',
+        status: 'error',
+        duration: 3000
+      });
+    }
+  };
 
   return (
-    <Container maxW="container.md" py={8}>
-      <VStack spacing={6}>
-        <HStack width="100%" justify="space-between">
-          <IconButton
-            aria-label="Go back"
-            icon={<ChakraIcon icon={MdArrowBack} boxSize={5} />}
-            onClick={() => navigate('/')}
-            variant="ghost"
-          />
-          <IconButton
-            aria-label="Share confession"
-            icon={<ChakraIcon icon={MdShare} boxSize={5} />}
-            onClick={handleShare}
-            variant="ghost"
-          />
-        </HStack>
+    <Box minH="100vh" bg="gray.50">
+      <Container maxW={{ base: "100%", md: "90%", lg: "80%" }} p={{ base: 2, md: 4 }}>
+        {loading ? (
+          <Center h="50vh">
+            <Spinner size="xl" color="blue.500" />
+          </Center>
+        ) : !confession ? (
+          <Alert status="error" rounded="lg">
+            <AlertIcon />
+            Confession not found
+          </Alert>
+        ) : (
+          <VStack spacing={{ base: 3, md: 6 }} align="stretch">
+            <HStack 
+              justify="space-between" 
+              wrap="wrap" 
+              gap={2}
+              position="sticky"
+              top={0}
+              bg="gray.50"
+              p={2}
+              zIndex={1}
+              boxShadow="sm"
+            >
+              <Button
+                leftIcon={<ChakraIcon icon={MdArrowBack} />}
+                onClick={() => navigate(-1)}
+                size={{ base: "sm", md: "md" }}
+                variant="ghost"
+                rounded="full"
+              >
+                Back
+              </Button>
+              <Text fontSize={{ base: "xs", md: "sm" }} color="gray.600">
+                {new Date(confession.createdAt).toLocaleDateString()}
+              </Text>
+              <Menu>
+                <MenuButton as={IconButton} icon={<ChakraIcon icon={HiDotsVertical} />} />
+                <MenuList>
+                  <MenuItem onClick={handleHideToggle}>
+                    {confession.isHidden ? 'Unhide' : 'Hide'}
+                  </MenuItem>
+                </MenuList>
+              </Menu>
+            </HStack>
 
-        <MotionBox
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          width="100%"
-        >
-          <Box
-            p={6}
-            borderWidth="1px"
-            borderRadius="lg"
-            bg={bgColor}
-            borderColor={borderColor}
-          >
-            <VStack align="start" spacing={4}>
-              <HStack width="100%" justify="space-between">
-                <Badge colorScheme={typeColors[confession.type]}>
+            <Box
+              p={{ base: 4, md: 6 }}
+              borderRadius="xl"
+              bg="white"
+              boxShadow="sm"
+              {...getThemeStyles(confession.type)}
+            >
+              <VStack spacing={4} align="stretch">
+                <Badge 
+                  alignSelf="flex-start"
+                  variant="subtle"
+                  colorScheme={getThemeColor(confession.type)}
+                  rounded="full"
+                  px={3}
+                  py={1}
+                  fontSize={{ base: "xs", md: "sm" }}
+                >
                   {confession.type}
                 </Badge>
-                <Text fontSize="sm" color="gray.500">
-                  {new Date(confession.createdAt).toLocaleDateString()}
-                </Text>
-              </HStack>
 
-              <Box width="100%">
-                {isUnlocked ? (
-                  <Text whiteSpace="pre-wrap">{confession.content}</Text>
-                ) : (
-                  <Text
-                    css={{
-                      filter: 'blur(4px)',
-                    }}
-                  >
-                    {confession.content}
-                  </Text>
-                )}
-              </Box>
-
-              <Text fontSize="sm" color="gray.500">
-                {confession.views} views
-              </Text>
-            </VStack>
-          </Box>
-        </MotionBox>
-      </VStack>
-
-      <Modal
-        isOpen={isPinModalOpen}
-        onClose={() => navigate('/')}
-        closeOnOverlayClick={false}
-      >
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>Enter PIN to unlock</ModalHeader>
-          <ModalCloseButton />
-          <ModalBody pb={6}>
-            <VStack spacing={4}>
-              <Text>Please enter the 4-digit PIN to view this confession</Text>
-              <HStack justify="center">
-                <PinInput
-                  value={pin}
-                  onChange={setPin}
-                  onComplete={handlePinSubmit}
-                  type="number"
-                  mask
-                  otp
+                <Text
+                  fontSize={{ base: "lg", md: "xl", lg: "2xl" }}
+                  fontWeight="medium"
+                  lineHeight="tall"
+                  whiteSpace="pre-wrap"
                 >
-                  <PinInputField />
-                  <PinInputField />
-                  <PinInputField />
-                  <PinInputField />
-                </PinInput>
-              </HStack>
-              <Button
-                colorScheme="pink"
-                onClick={handlePinSubmit}
-                isDisabled={pin.length !== 4}
-              >
-                Unlock
-              </Button>
-              {/* Debug info */}
-              <Text fontSize="xs" color="gray.500">
-                Entered PIN: {pin}
-              </Text>
-            </VStack>
-          </ModalBody>
-        </ModalContent>
-      </Modal>
-    </Container>
+                  {isUnlocked ? (
+                    <Text whiteSpace="pre-wrap">{confession.content}</Text>
+                  ) : (
+                    <Text
+                      css={{
+                        filter: 'blur(4px)',
+                      }}
+                    >
+                      {confession.content}
+                    </Text>
+                  )}
+                </Text>
+
+                <HStack justify="space-between" mt={2}>
+                  <Text fontSize={{ base: "xs", md: "sm" }} color="gray.500">
+                    {confession.views} views
+                  </Text>
+                </HStack>
+              </VStack>
+            </Box>
+
+            <Modal
+              isOpen={isPinModalOpen}
+              onClose={() => navigate('/')}
+              closeOnOverlayClick={false}
+            >
+              <ModalOverlay />
+              <ModalContent>
+                <ModalHeader>Enter PIN to unlock</ModalHeader>
+                <ModalCloseButton />
+                <ModalBody pb={6}>
+                  <VStack spacing={4}>
+                    <Text>Please enter the 4-digit PIN to view this confession</Text>
+                    <HStack justify="center">
+                      <PinInput
+                        value={pin}
+                        onChange={setPin}
+                        onComplete={handlePinSubmit}
+                        type="number"
+                        mask
+                        otp
+                        size={{ base: "lg", md: "xl" }}
+                      >
+                        <PinInputField />
+                        <PinInputField />
+                        <PinInputField />
+                        <PinInputField />
+                      </PinInput>
+                    </HStack>
+                    <Button
+                      colorScheme="pink"
+                      onClick={handlePinSubmit}
+                      isDisabled={pin.length !== 4}
+                    >
+                      Unlock
+                    </Button>
+                    {/* Debug info */}
+                    <Text fontSize="xs" color="gray.500">
+                      Entered PIN: {pin}
+                    </Text>
+                  </VStack>
+                </ModalBody>
+              </ModalContent>
+            </Modal>
+          </VStack>
+        )}
+      </Container>
+    </Box>
   );
+}
+
+function getThemeStyles(type: ConfessionType) {
+  switch (type) {
+    case 'letter':
+      return {
+        bg: 'pink.100',
+        borderColor: 'pink.200',
+      };
+    case 'card':
+      return {
+        bg: 'purple.100',
+        borderColor: 'purple.200',
+      };
+    case 'note':
+      return {
+        bg: 'blue.100',
+        borderColor: 'blue.200',
+      };
+    case 'poem':
+      return {
+        bg: 'green.100',
+        borderColor: 'green.200',
+      };
+    case 'story':
+      return {
+        bg: 'orange.100',
+        borderColor: 'orange.200',
+      };
+    default:
+      return {};
+  }
+}
+
+function getThemeColor(type: ConfessionType) {
+  switch (type) {
+    case 'letter':
+      return 'pink';
+    case 'card':
+      return 'purple';
+    case 'note':
+      return 'blue';
+    case 'poem':
+      return 'green';
+    case 'story':
+      return 'orange';
+    default:
+      return 'gray';
+  }
 }
