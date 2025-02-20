@@ -14,15 +14,15 @@ import {
   MenuItem,
   Avatar,
   useToast,
-  Icon,
   Stack,
+  HStack,
 } from '@chakra-ui/react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { MdDarkMode, MdLightMode, MdCreate, MdFavorite } from 'react-icons/md';
+import { MdDarkMode, MdLightMode, MdCreate, MdFavorite, MdPerson, MdLogout } from 'react-icons/md';
 import { ChakraIcon } from './ChakraIcon';
 
-export default function Navbar() {
+export function Navbar() {
   const { user, signOut } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
@@ -68,88 +68,111 @@ export default function Navbar() {
       bg={bgColor} 
       borderBottom="1px" 
       borderColor={borderColor}
-      position="sticky"
+      position="fixed"
       top={0}
+      left={0}
+      right={0}
       zIndex={1000}
+      backdropFilter="blur(10px)"
+      backgroundColor={useColorModeValue('rgba(255, 255, 255, 0.8)', 'rgba(26, 32, 44, 0.8)')}
     >
-      <Container maxW="container.xl">
+      <Container maxW="container.xl" px={{ base: 4, md: 8 }}>
         <Flex h={16} alignItems="center" justifyContent="space-between">
-          <Flex alignItems="center" gap={8}>
+          <HStack spacing={8}>
             <Link 
               as={RouterLink} 
               to="/" 
               fontSize="xl" 
               fontWeight="bold"
-              color="pink.500"
-              _hover={{ textDecoration: 'none' }}
+              color="brand.500"
+              _hover={{ textDecoration: 'none', color: 'brand.600' }}
+              display="flex"
+              alignItems="center"
             >
-              <ChakraIcon icon={MdFavorite} boxSize={6} color="pink.500" />
+              <ChakraIcon icon={MdFavorite} boxSize={6} />
               <Box as="span" ml={2}>
-                Love Confessions
+                Confessions
               </Box>
             </Link>
             
-            <Flex gap={4}>
+            <HStack spacing={4} display={{ base: 'none', md: 'flex' }}>
               <Link 
                 as={RouterLink} 
                 to="/board"
-                display="flex"
-                alignItems="center"
+                py={2}
+                px={4}
+                rounded="lg"
                 color={useColorModeValue('gray.600', 'gray.300')}
-                _hover={{ color: 'pink.500', textDecoration: 'none' }}
+                _hover={{ 
+                  bg: useColorModeValue('gray.100', 'gray.700'),
+                  color: 'brand.500',
+                  textDecoration: 'none'
+                }}
               >
-                <ChakraIcon icon={MdFavorite} boxSize={5} mr={2} />
                 Confession Board
               </Link>
-            </Flex>
-          </Flex>
+            </HStack>
+          </HStack>
 
-          <Flex alignItems="center" gap={4}>
-            <IconButton
-              aria-label={`Switch to ${colorMode === 'light' ? 'dark' : 'light'} mode`}
-              icon={<ChakraIcon icon={colorMode === 'light' ? MdDarkMode : MdLightMode} boxSize={5} />}
-              onClick={toggleColorMode}
-              variant="ghost"
-            />
-
+          <HStack spacing={4}>
             <Button
-              leftIcon={<ChakraIcon icon={MdCreate} boxSize={5} />}
-              colorScheme="pink"
-              variant="solid"
+              leftIcon={<ChakraIcon icon={MdCreate} />}
+              colorScheme="brand"
               onClick={handleCreateConfession}
+              size="sm"
             >
               Create
             </Button>
 
+            <IconButton
+              aria-label="Toggle color mode"
+              icon={colorMode === 'light' ? <ChakraIcon icon={MdDarkMode} /> : <ChakraIcon icon={MdLightMode} />}
+              onClick={toggleColorMode}
+              variant="ghost"
+              colorScheme="brand"
+              size="sm"
+            />
+
             {user ? (
               <Menu>
-                <MenuButton>
-                  <Avatar size="sm" name={user.email || undefined} />
+                <MenuButton
+                  as={Button}
+                  rounded="full"
+                  variant="link"
+                  cursor="pointer"
+                  minW={0}
+                >
+                  <Avatar size="sm" name={user.displayName || ''} src={user.photoURL || ''} />
                 </MenuButton>
                 <MenuList>
-                  <MenuItem onClick={handleLogout}>Logout</MenuItem>
+                  <MenuItem icon={<ChakraIcon icon={MdPerson} />}>Profile</MenuItem>
+                  <MenuItem icon={<ChakraIcon icon={MdLogout} />} onClick={handleLogout}>
+                    Logout
+                  </MenuItem>
                 </MenuList>
               </Menu>
             ) : (
-              <Flex gap={2}>
+              <Stack direction="row" spacing={2}>
                 <Button
                   as={RouterLink}
                   to="/login"
                   variant="ghost"
-                  colorScheme="pink"
+                  colorScheme="brand"
+                  size="sm"
                 >
                   Login
                 </Button>
                 <Button
                   as={RouterLink}
                   to="/signup"
-                  colorScheme="pink"
+                  colorScheme="brand"
+                  size="sm"
                 >
                   Sign Up
                 </Button>
-              </Flex>
+              </Stack>
             )}
-          </Flex>
+          </HStack>
         </Flex>
       </Container>
     </Box>

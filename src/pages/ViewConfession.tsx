@@ -93,7 +93,20 @@ export default function ViewConfession() {
             pin,
             isHidden: data.isHidden || false
           } as Confession);
-          setIsPinModalOpen(true);
+
+          // Check if we have the PIN stored in localStorage
+          const storedPin = localStorage.getItem(`confession_pin_${docSnap.id}`);
+          if (storedPin) {
+            // Auto-unlock if PIN matches
+            if (parseInt(storedPin, 10) === pin) {
+              setIsUnlocked(true);
+              setIsPinModalOpen(false);
+            } else {
+              setIsPinModalOpen(true);
+            }
+          } else {
+            setIsPinModalOpen(true);
+          }
 
           // Increment view count
           await updateDoc(docRef, {
@@ -125,36 +138,27 @@ export default function ViewConfession() {
   const handlePinSubmit = () => {
     if (!confession) return;
 
-    // Convert entered PIN to number
-    const enteredPin = parseInt(pin, 10);
-
-    // Ensure both PINs are numbers
-    const storedPin = typeof confession.pin === 'string' ? parseInt(confession.pin, 10) : confession.pin;
-
-    if (enteredPin === storedPin) {
+    if (parseInt(pin, 10) === confession.pin) {
       setIsUnlocked(true);
       setIsPinModalOpen(false);
-      setPinAttempts(0);
+      // Store PIN for future auto-unlock
+      localStorage.setItem(`confession_pin_${confession.id}`, pin);
     } else {
       setPinAttempts(prev => prev + 1);
-      if (pinAttempts >= 2) {
-        toast({
-          title: "Too many attempts",
-          description: "Please try again later",
-          status: "error",
-          duration: 3000,
-        });
-        navigate('/');
-      } else {
-        toast({
-          title: "Incorrect PIN",
-          description: `${3 - pinAttempts} attempts remaining`,
-          status: "error",
-          duration: 3000,
-        });
-      }
+      toast({
+        title: "Incorrect PIN",
+        status: "error",
+        duration: 2000,
+      });
       setPin('');
     }
+  };
+
+  const handleModalClose = () => {
+    if (!isUnlocked) {
+      navigate('/');
+    }
+    setIsPinModalOpen(false);
   };
 
   const handleShare = () => {
@@ -293,7 +297,7 @@ export default function ViewConfession() {
 
             <Modal
               isOpen={isPinModalOpen}
-              onClose={() => navigate('/')}
+              onClose={handleModalClose}
               closeOnOverlayClick={false}
             >
               <ModalOverlay />

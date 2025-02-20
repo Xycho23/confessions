@@ -39,7 +39,8 @@ export const COLLECTIONS = {
   HIDDEN_CONFESSIONS: 'hiddenConfessions',
   REPLIES: 'replies',
   USERS: 'users',
-  TEMPLATES: 'templates'
+  TEMPLATES: 'templates',
+  CHATS: 'chats'
 } as const;
 
 // Firestore types

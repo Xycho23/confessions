@@ -30,7 +30,12 @@ import {
   FormControl,
   Textarea,
   FormLabel,
-  PinInputField
+  PinInputField,
+  InputGroup,
+  InputLeftElement,
+  Input,
+  Select,
+  Center
 } from '@chakra-ui/react';
 import {
   collection,
@@ -46,7 +51,7 @@ import {
 import { db, COLLECTIONS } from '../config/firebase';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { MdMoreVert, MdShare, MdLock, MdVisibility, MdVisibilityOff, MdChat } from 'react-icons/md';
+import { MdMoreVert, MdShare, MdLock, MdVisibility, MdVisibilityOff, MdChat, MdSearch } from 'react-icons/md';
 import { useAuth } from '../context/AuthContext';
 import { ChakraIcon } from '../components/ChakraIcon';
 import { CustomPinInput as PinInput } from '../components/PinInput';
@@ -644,12 +649,21 @@ export default function ConfessionBoard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hiddenConfessions, setHiddenConfessions] = useState<Set<string>>(new Set());
+  const [selectedType, setSelectedType] = useState<ConfessionType | 'all'>('all');
+  const [sortBy, setSortBy] = useState<'newest' | 'popular'>('newest');
+  const [searchTerm, setSearchTerm] = useState('');
   const toast = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const bgColor = useColorModeValue('gray.50', 'gray.900');
+  const cardBg = useColorModeValue('white', 'gray.800');
+  const borderColor = useColorModeValue('gray.200', 'gray.600');
 
   const fetchHiddenConfessions = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      setHiddenConfessions(new Set());
+      return;
+    }
 
     try {
       const q = query(
@@ -667,298 +681,233 @@ export default function ConfessionBoard() {
     }
   }, [user]);
 
-  useEffect(() => {
-    fetchHiddenConfessions();
-  }, [fetchHiddenConfessions]);
-
-  const handleHideConfession = async (confessionId: string) => {
-    if (!user) {
-      toast({
-        title: "Please login first",
-        status: "error",
-        duration: 2000,
-      });
-      return;
-    }
-
-    try {
-      const hiddenRef = doc(collection(db, COLLECTIONS.HIDDEN_CONFESSIONS));
-      await setDoc(hiddenRef, {
-        userId: user.uid,
-        confessionId,
-        hiddenAt: new Date().toISOString(),
-      });
-      setHiddenConfessions(prev => new Set(Array.from(prev).concat(confessionId)));
-      toast({
-        title: "Confession hidden",
-        description: "You won't see this confession anymore",
-        status: "success",
-        duration: 2000,
-      });
-    } catch (error) {
-      toast({
-        title: "Error hiding confession",
-        status: "error",
-        duration: 2000,
-      });
-    }
-  };
-
-  const handleUnhideConfession = async (confessionId: string) => {
-    if (!user) return;
-
-    try {
-      const q = query(
-        collection(db, COLLECTIONS.HIDDEN_CONFESSIONS),
-        where('userId', '==', user.uid),
-        where('confessionId', '==', confessionId)
-      );
-      const querySnapshot = await getDocs(q);
-      
-      querySnapshot.forEach(async (doc) => {
-        await deleteDoc(doc.ref);
-      });
-
-      setHiddenConfessions(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(confessionId);
-        return newSet;
-      });
-
-      toast({
-        title: "Confession unhidden",
-        status: "success",
-        duration: 2000,
-      });
-    } catch (error) {
-      toast({
-        title: "Error unhiding confession",
-        status: "error",
-        duration: 2000,
-      });
-    }
-  };
-
   const fetchConfessions = useCallback(async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      setError(null);
-
-      // Create dummy confessions if not authenticated
-      if (!user) {
-        const dummyConfessions: Confession[] = [
-          {
-            id: '1',
-            content: 'This is a sample confession. Sign in to view real confessions.',
-            type: 'letter',
-            userId: 'dummy',
-            pin: 0,
-            createdAt: new Date().toISOString(),
-            views: 0,
-            isHidden: false
-          },
-          {
-            id: '2',
-            content: 'Another sample confession. All confessions are protected with a PIN.',
-            type: 'note',
-            userId: 'dummy',
-            pin: 0,
-            createdAt: new Date().toISOString(),
-            views: 0,
-            isHidden: false
-          },
-          {
-            id: '3',
-            content: 'Share your feelings anonymously. Login to start confessing.',
-            type: 'card',
-            userId: 'dummy',
-            pin: 0,
-            createdAt: new Date().toISOString(),
-            views: 0,
-            isHidden: false
-          }
-        ];
-        setConfessions(dummyConfessions);
-        setLoading(false);
-        return;
-      }
-
-      const q = query(collection(db, COLLECTIONS.CONFESSIONS), orderBy('createdAt', 'desc'));
+      let q = query(
+        collection(db, COLLECTIONS.CONFESSIONS),
+        sortBy === 'newest' 
+          ? orderBy('createdAt', 'desc')
+          : orderBy('views', 'desc')
+      );
+      
       const querySnapshot = await getDocs(q);
-      
-      const fetchedConfessions: Confession[] = [];
-      querySnapshot.forEach((doc) => {
-        if (!hiddenConfessions.has(doc.id)) {
-          fetchedConfessions.push({
-            id: doc.id,
-            ...doc.data() as Omit<Confession, 'id'>
-          });
-        }
-      });
-      
+      const fetchedConfessions = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Confession[];
+
       setConfessions(fetchedConfessions);
+      setError(null);
     } catch (error) {
       console.error('Error fetching confessions:', error);
-      setError('Error fetching confessions. Please try again later.');
+      setError('Failed to load confessions. Please try again later.');
     } finally {
       setLoading(false);
     }
-  }, [user, hiddenConfessions]);
+  }, [sortBy]);
 
   useEffect(() => {
     fetchConfessions();
-  }, [fetchConfessions]);
+    fetchHiddenConfessions();
+  }, [fetchConfessions, fetchHiddenConfessions]);
+
+  const handleCreateConfession = () => {
+    if (!user) {
+      toast({
+        title: "Please log in",
+        description: "You need to be logged in to create a confession",
+        status: "warning",
+        duration: 3000,
+      });
+      return;
+    }
+    navigate('/create');
+  };
+
+  const filteredConfessions = confessions
+    .filter(confession => {
+      if (selectedType !== 'all' && confession.type !== selectedType) return false;
+      if (searchTerm && !confession.content.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+      return true;
+    });
 
   return (
-    <Box minH="100vh" bg="gray.50">
-      <Container maxW={{ base: "100%", md: "90%", lg: "80%" }} p={{ base: 2, md: 4 }}>
-        <VStack spacing={{ base: 3, md: 4 }} align="stretch" w="100%">
-          <HStack 
-            justify="space-between" 
-            flexWrap="wrap" 
-            gap={2}
-            position="sticky"
-            top={0}
-            bg="gray.50"
-            p={2}
-            zIndex={1}
-            boxShadow="sm"
+    <Box minH="100vh" bg={bgColor} py={8}>
+      <Container maxW="6xl">
+        {/* Header Section */}
+        <VStack spacing={8} mb={12}>
+          <Heading fontSize={{ base: "2xl", md: "4xl" }} textAlign="center">
+            Confession Wall
+          </Heading>
+          <Text fontSize="lg" color="gray.500" textAlign="center" maxW="2xl">
+            Share your thoughts anonymously. Each confession is protected by a PIN, ensuring your privacy.
+          </Text>
+          <Button
+            size="lg"
+            colorScheme="purple"
+            leftIcon={<ChakraIcon icon={MdChat} boxSize={5} />}
+            onClick={handleCreateConfession}
           >
-            <Heading size={{ base: "md", md: "lg" }}>Confessions</Heading>
-            {user && (
-              <Button
-                leftIcon={<ChakraIcon icon={MdMoreVert} />}
-                colorScheme="blue"
-                onClick={() => navigate('/create')}
-                size={{ base: "sm", md: "md" }}
-                rounded="full"
-              >
-                New Confession
-              </Button>
-            )}
-          </HStack>
-
-          {error ? (
-            <Alert status="error" width="100%">
-              <AlertIcon />
-              {error}
-            </Alert>
-          ) : loading ? (
-            <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={{ base: 3, md: 4 }}>
-              {[...Array(6)].map((_, i) => (
-                <LoadingCard key={i} />
-              ))}
-            </SimpleGrid>
-          ) : confessions.length === 0 ? (
-            <Text
-              textAlign="center"
-              color="gray.500"
-              fontSize="lg"
-              width="100%"
-            >
-              No confessions yet. Be the first to share your love!
-            </Text>
-          ) : (
-            <SimpleGrid 
-              columns={{ base: 1, md: 2, lg: 3 }} 
-              spacing={{ base: 3, md: 4 }}
-              px={{ base: 2, md: 0 }}
-            >
-              {confessions.map((confession) => (
-                user ? (
-                  <Box
-                    key={confession.id}
-                    p={{ base: 3, md: 4 }}
-                    borderRadius="xl"
-                    bg="white"
-                    boxShadow="sm"
-                    transition="all 0.2s"
-                    _hover={{ boxShadow: "md", transform: "translateY(-2px)" }}
-                  >
-                    <VStack align="stretch" spacing={3}>
-                      <HStack justify="space-between" align="center">
-                        <Text 
-                          fontSize={{ base: "xs", md: "sm" }}
-                          color="gray.600"
-                          noOfLines={1}
-                        >
-                          {new Date(confession.createdAt).toLocaleDateString()}
-                        </Text>
-                        <Menu>
-                          <MenuButton
-                            as={IconButton}
-                            aria-label="Options"
-                            icon={<ChakraIcon icon={MdMoreVert} />}
-                            variant="ghost"
-                            size="sm"
-                            rounded="full"
-                          />
-                          <MenuList>
-                            <MenuItem 
-                              icon={<ChakraIcon icon={MdVisibility} />}
-                              onClick={() => navigate(`/confession/${confession.id}`)}
-                            >
-                              View
-                            </MenuItem>
-                            {user && user.uid === confession.userId && (
-                              <>
-                                <MenuItem 
-                                  icon={confession.isHidden ? <ChakraIcon icon={MdVisibilityOff} /> : <ChakraIcon icon={MdVisibility} />}
-                                  onClick={() => handleHideConfession(confession.id)}
-                                >
-                                  {confession.isHidden ? "Unhide" : "Hide"}
-                                </MenuItem>
-                                <MenuItem 
-                                  icon={<ChakraIcon icon={MdLock} />}
-                                  color="red.500" 
-                                  onClick={() => handleHideConfession(confession.id)}
-                                >
-                                  Delete
-                                </MenuItem>
-                              </>
-                            )}
-                          </MenuList>
-                        </Menu>
-                      </HStack>
-
-                      <Text 
-                        fontSize={{ base: "md", md: "lg" }}
-                        fontWeight="medium"
-                        noOfLines={3}
-                        lineHeight="tall"
-                      >
-                        {confession.content}
-                      </Text>
-
-                      <HStack justify="space-between" mt={2}>
-                        <Badge 
-                          variant="subtle" 
-                          colorScheme={typeColors[confession.type]}
-                          rounded="full"
-                          px={2}
-                          fontSize="xs"
-                        >
-                          {confession.type}
-                        </Badge>
-                        <Text fontSize="xs" color="gray.500">
-                          {confession.views} views
-                        </Text>
-                      </HStack>
-                    </VStack>
-                  </Box>
-                ) : (
-                  <BlurredConfessionCard 
-                    key={confession.id} 
-                    confession={confession}
-                    hiddenConfessions={hiddenConfessions}
-                    onHide={handleHideConfession}
-                    onUnhide={handleUnhideConfession}
-                  />
-                )
-              ))}
-            </SimpleGrid>
-          )}
+            Create Confession
+          </Button>
         </VStack>
+
+        {/* Filters Section */}
+        <HStack spacing={4} mb={8} wrap="wrap">
+          <InputGroup maxW="300px">
+            <InputLeftElement>
+              <ChakraIcon icon={MdSearch} color="gray.500" />
+            </InputLeftElement>
+            <Input
+              placeholder="Search confessions..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              bg={cardBg}
+            />
+          </InputGroup>
+
+          <Select
+            value={selectedType}
+            onChange={(e) => setSelectedType(e.target.value as ConfessionType | 'all')}
+            maxW="200px"
+            bg={cardBg}
+          >
+            <option value="all">All Types</option>
+            <option value="letter">Letters</option>
+            <option value="card">Cards</option>
+            <option value="note">Notes</option>
+            <option value="poem">Poems</option>
+            <option value="story">Stories</option>
+          </Select>
+
+          <Select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as 'newest' | 'popular')}
+            maxW="200px"
+            bg={cardBg}
+          >
+            <option value="newest">Newest First</option>
+            <option value="popular">Most Viewed</option>
+          </Select>
+        </HStack>
+
+        {/* Error Message */}
+        {error && (
+          <Alert status="error" mb={8} borderRadius="md">
+            <AlertIcon />
+            {error}
+          </Alert>
+        )}
+
+        {/* Loading State */}
+        {loading ? (
+          <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={8}>
+            {[...Array(6)].map((_, i) => (
+              <LoadingCard key={i} />
+            ))}
+          </SimpleGrid>
+        ) : (
+          <>
+            {/* Results Summary */}
+            <Text mb={4} color="gray.500">
+              Showing {filteredConfessions.length} confession{filteredConfessions.length !== 1 ? 's' : ''}
+            </Text>
+
+            {/* Confessions Grid */}
+            <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={8}>
+              {filteredConfessions.map((confession) => (
+                <BlurredConfessionCard
+                  key={confession.id}
+                  confession={confession}
+                  hiddenConfessions={hiddenConfessions}
+                  onHide={async (id) => {
+                    if (!user) {
+                      toast({
+                        title: "Please log in",
+                        description: "You need to be logged in to hide confessions",
+                        status: "warning",
+                        duration: 3000,
+                      });
+                      return;
+                    }
+                    try {
+                      await addDoc(collection(db, COLLECTIONS.HIDDEN_CONFESSIONS), {
+                        userId: user.uid,
+                        confessionId: id,
+                        hiddenAt: new Date().toISOString()
+                      });
+                      await fetchHiddenConfessions();
+                      toast({
+                        title: "Confession hidden",
+                        status: "success",
+                        duration: 2000,
+                      });
+                    } catch (error) {
+                      console.error('Error hiding confession:', error);
+                      toast({
+                        title: "Error hiding confession",
+                        status: "error",
+                        duration: 2000,
+                      });
+                    }
+                  }}
+                  onUnhide={async (id) => {
+                    if (!user) return;
+                    try {
+                      const q = query(
+                        collection(db, COLLECTIONS.HIDDEN_CONFESSIONS),
+                        where('userId', '==', user.uid),
+                        where('confessionId', '==', id)
+                      );
+                      const querySnapshot = await getDocs(q);
+                      const deletePromises = querySnapshot.docs.map(doc => 
+                        deleteDoc(doc.ref)
+                      );
+                      await Promise.all(deletePromises);
+                      await fetchHiddenConfessions();
+                      toast({
+                        title: "Confession unhidden",
+                        status: "success",
+                        duration: 2000,
+                      });
+                    } catch (error) {
+                      console.error('Error unhiding confession:', error);
+                      toast({
+                        title: "Error unhiding confession",
+                        status: "error",
+                        duration: 2000,
+                      });
+                    }
+                  }}
+                />
+              ))}
+            </SimpleGrid>
+
+            {/* Empty State */}
+            {filteredConfessions.length === 0 && (
+              <Center py={12}>
+                <VStack spacing={4}>
+                  <ChakraIcon icon={MdChat} boxSize={12} color="gray.400" />
+                  <Text color="gray.500" fontSize="lg">
+                    No confessions found
+                  </Text>
+                  <Button
+                    colorScheme="purple"
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedType('all');
+                      setSearchTerm('');
+                      setSortBy('newest');
+                    }}
+                  >
+                    Clear Filters
+                  </Button>
+                </VStack>
+              </Center>
+            )}
+          </>
+        )}
       </Container>
     </Box>
   );

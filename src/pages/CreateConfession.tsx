@@ -125,6 +125,9 @@ export default function CreateConfession() {
       // Create share URL
       const shareUrl = `${window.location.origin}/confession/${docRef.id}`;
 
+      // Store PIN in localStorage for auto-unlock
+      localStorage.setItem(`confession_pin_${docRef.id}`, pin);
+
       // Show success message without attempting to copy to clipboard
       toast({
         title: "Confession created!",

@@ -10,11 +10,9 @@ interface ChakraIconProps extends IconProps {
 // Create the ChakraIcon component using forwardRef
 export const ChakraIcon = React.forwardRef<SVGSVGElement, ChakraIconProps>(
   ({ icon, ...props }, ref) => {
-    return <Icon as={icon as React.ElementType} ref={ref} {...props} />;
+    return <Icon as={icon} ref={ref} {...props} />;
   }
 );
 
 // Add display name for better debugging
 ChakraIcon.displayName = "ChakraIcon";
-
-export default ChakraIcon;
